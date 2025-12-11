@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Captures (students will generate their own)
+capture/*.pcap
+
+# Analysis output
+analysis/output/
+*.png
+*.pdf
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local configuration
+.env
+*.local

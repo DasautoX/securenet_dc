@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureNet DC - Network Operations Center</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <h1>SecureNet DC</h1>
+                <span class="subtitle">Network Operations Center</span>
+            </div>
+            <div class="status-bar">
+                <div class="status-item">
+                    <span class="status-label">Controller</span>
+                    <span class="status-value" id="controller-status">Connecting...</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Switches</span>
+                    <span class="status-value" id="switch-count">0</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Flows</span>
+                    <span class="status-value" id="flow-count">0</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Last Update</span>
+                    <span class="status-value" id="last-update">--:--:--</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Left Panel: Topology -->
+            <section class="panel topology-panel">
+                <div class="panel-header">
+                    <h2>Network Topology</h2>
+                    <div class="panel-controls">
+                        <button onclick="resetTopology()">Reset View</button>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div id="topology-container"></div>
+                    <div class="topology-legend">
+                        <div class="legend-item"><span class="legend-color core"></span> Core Switch</div>
+                        <div class="legend-item"><span class="legend-color edge"></span> Edge Switch</div>
+                        <div class="legend-item"><span class="legend-color host"></span> Host (Normal)</div>
+                        <div class="legend-item"><span class="legend-color attacker"></span> Attacking</div>
+                        <div class="legend-item"><span class="legend-color blocked"></span> Blocked</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Panel: Stats -->
+            <section class="panel stats-panel">
+                <!-- Traffic Stats -->
+                <div class="stats-section">
+                    <h3>Traffic Statistics</h3>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <span class="stat-value" id="total-packets">0</span>
+                            <span class="stat-label">Total Packets</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-value" id="total-bytes">0 MB</span>
+                            <span class="stat-label">Total Bytes</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-value" id="rx-rate">0 Mbps</span>
+                            <span class="stat-label">RX Rate</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-value" id="tx-rate">0 Mbps</span>
+                            <span class="stat-label">TX Rate</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DDoS Section -->
+                <div class="stats-section ddos-section">
+                    <h3>DDoS Defense</h3>
+                    <div class="ddos-stats">
+                        <div class="stat-card danger">
+                            <span class="stat-value" id="attacks-detected">0</span>
+                            <span class="stat-label">Attacks Detected</span>
+                        </div>
+                        <div class="stat-card warning">
+                            <span class="stat-value" id="hosts-blocked">0</span>
+                            <span class="stat-label">Hosts Blocked</span>
+                        </div>
+                    </div>
+                    <div class="blocked-hosts" id="blocked-hosts-list">
+                        <h4>Blocked Hosts</h4>
+                        <ul id="blocked-list"></ul>
+                    </div>
+                </div>
+
+                <!-- Load Balancer -->
+                <div class="stats-section lb-section">
+                    <h3>Load Balancer</h3>
+                    <div class="lb-info">
+                        <p>VIP: <span id="lb-vip">10.0.0.100</span></p>
+                        <p>Algorithm: <span id="lb-algorithm">round_robin</span></p>
+                        <p>Total Requests: <span id="lb-requests">0</span></p>
+                    </div>
+                    <div class="server-pool" id="server-pool">
+                        <!-- Server pool will be populated dynamically -->
+                    </div>
+                </div>
+
+                <!-- QoS -->
+                <div class="stats-section qos-section">
+                    <h3>QoS Queues</h3>
+                    <div class="qos-queues" id="qos-queues">
+                        <div class="queue-bar">
+                            <span class="queue-name">Critical</span>
+                            <div class="queue-meter"><div class="queue-fill critical" style="width: 50%"></div></div>
+                        </div>
+                        <div class="queue-bar">
+                            <span class="queue-name">Real-time</span>
+                            <div class="queue-meter"><div class="queue-fill realtime" style="width: 30%"></div></div>
+                        </div>
+                        <div class="queue-bar">
+                            <span class="queue-name">Interactive</span>
+                            <div class="queue-meter"><div class="queue-fill interactive" style="width: 15%"></div></div>
+                        </div>
+                        <div class="queue-bar">
+                            <span class="queue-name">Bulk</span>
+                            <div class="queue-meter"><div class="queue-fill bulk" style="width: 5%"></div></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom Panel: Alerts -->
+        <section class="panel alerts-panel">
+            <div class="panel-header">
+                <h2>Security Alerts</h2>
+                <span class="alert-count" id="alert-count">0</span>
+            </div>
+            <div class="alerts-container" id="alerts-container">
+                <!-- Alerts will be populated dynamically -->
+            </div>
+        </section>
+    </div>
+
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>

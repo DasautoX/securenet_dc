@@ -1,0 +1,657 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{float}
+
+% Colors
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+\definecolor{primaryblue}{RGB}{88,166,255}
+
+% Code listing style
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2,
+    frame=single
+}
+\lstset{style=mystyle}
+
+% Header/Footer
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{CPEG 460 - Computer Networks}
+\fancyhead[R]{Lab: SecureNet DC}
+\fancyfoot[C]{\thepage}
+
+% Title formatting
+\titleformat{\section}{\Large\bfseries\color{primaryblue}}{\thesection}{1em}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{1em}{}
+
+\begin{document}
+
+% Title Page
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+
+    {\Huge\bfseries SecureNet DC\\[0.5cm]}
+    {\Large Building and Defending a Software-Defined\\Data Center Network\\[2cm]}
+
+    {\large\textbf{Lab Experiment Document}\\[0.5cm]}
+
+    \vspace{1cm}
+
+    {\Large CPEG 460 - Computer Networks\\[0.3cm]}
+    {\large Fall 2025\\[0.3cm]}
+    {\large Dr. Mohammad Shaqfeh\\[2cm]}
+
+    \vspace{2cm}
+
+    \begin{tabular}{ll}
+        \textbf{Duration:} & 4-5 hours \\
+        \textbf{Difficulty:} & Advanced \\
+        \textbf{Prerequisites:} & TCP/IP, Python, Linux basics \\
+    \end{tabular}
+
+    \vfill
+
+    {\small Hamad Bin Khalifa University\\College of Science and Engineering}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% Introduction
+\section{Introduction}
+
+\subsection{Overview}
+This lab introduces Software-Defined Networking (SDN) through a comprehensive data center simulation using Mininet. You will explore a Fat-Tree topology, implement SDN controller features, experience DDoS attack detection, and configure Quality of Service (QoS) policies.
+
+\subsection{Learning Objectives}
+Upon completing this lab, you will be able to:
+\begin{itemize}
+    \item Understand Fat-Tree data center topology and its advantages
+    \item Program an SDN controller using the Ryu framework
+    \item Implement load balancing using OpenFlow
+    \item Detect and mitigate DDoS attacks in an SDN environment
+    \item Configure QoS policies for traffic prioritization
+    \item Analyze network performance using standard tools
+\end{itemize}
+
+\subsection{Background}
+Software-Defined Networking separates the control plane (decision-making) from the data plane (packet forwarding). The SDN controller makes forwarding decisions and installs flow rules on switches via the OpenFlow protocol.
+
+The Fat-Tree topology is widely used in data centers due to its:
+\begin{itemize}
+    \item Full bisection bandwidth
+    \item Multiple paths for fault tolerance
+    \item Scalable, regular structure
+\end{itemize}
+
+\newpage
+
+% Part A
+\section{Part A: Environment Setup (30 minutes)}
+
+\subsection{Prerequisites}
+This lab requires WSL2 (Windows Subsystem for Linux 2) with Ubuntu. Ensure you have:
+\begin{itemize}
+    \item Windows 10/11 with WSL2 enabled
+    \item Ubuntu 20.04+ distribution installed in WSL2
+    \item Python 3.11 (recommended)
+    \item Mininet 2.3.0+
+    \item Open vSwitch 2.13+
+\end{itemize}
+
+\subsection{Operating Modes}
+
+The project supports two operating modes depending on your environment:
+
+\begin{table}[H]
+\centering
+\caption{Operating Mode Comparison}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{Aspect} & \textbf{Linux Bridge Mode (WSL2)} & \textbf{Full SDN Mode (VM)} \\
+\midrule
+Switch type & Linux bridges (\texttt{--switch lxbr}) & OVS (\texttt{--switch ovsk}) \\
+Controller & Not required & Ryu controller required \\
+Flow rules & Not supported & Full OpenFlow support \\
+Best for & Traffic generation, detection testing & Complete SDN demonstration \\
+Command & \texttt{sudo mn --switch lxbr --topo tree,2} & \texttt{sudo mn --controller remote --topo tree,2} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Note:} WSL2 has issues establishing OpenFlow connections. Use Linux Bridge mode for quick testing, or set up a Linux VM (VirtualBox/VMware) for full SDN features.
+
+\subsection{Quick Setup (Recommended)}
+
+The project includes an automated setup script that handles all dependencies:
+
+\begin{lstlisting}[language=bash,caption=Automated Setup]
+# Open WSL Ubuntu terminal
+cd ~/securenet_dc
+
+# Run the setup script
+chmod +x scripts/setup_wsl.sh
+./scripts/setup_wsl.sh
+\end{lstlisting}
+
+The script automatically:
+\begin{itemize}
+    \item Creates a Python 3.11 virtual environment
+    \item Installs Ryu SDN Framework with correct dependencies
+    \item Installs Flask and dashboard dependencies
+    \item Applies required patches for eventlet compatibility
+    \item Verifies all installations
+\end{itemize}
+
+\subsection{Manual Installation (Alternative)}
+
+If you prefer manual installation:
+
+\begin{lstlisting}[language=bash,caption=Manual Installation Commands]
+# Update system and install base packages
+sudo apt-get update
+sudo apt-get install -y mininet openvswitch-switch python3.11 python3.11-venv
+
+# Install network testing tools
+sudo apt-get install -y iperf3 hping3 tcpdump
+
+# Create and activate virtual environment
+python3.11 -m venv venv
+source venv/bin/activate
+
+# Install Python packages (order matters!)
+pip install wheel setuptools==57.5.0
+pip install --no-build-isolation ryu
+pip install flask flask-socketio flask-cors requests scapy matplotlib
+
+# Apply eventlet patch (REQUIRED for Ryu to work)
+WSGI_FILE=$(find venv -name "wsgi.py" -path "*/ryu/app/*" | head -1)
+sed -i "s/from eventlet.wsgi import ALREADY_HANDLED/ALREADY_HANDLED = b''/" "$WSGI_FILE"
+\end{lstlisting}
+
+\subsection{Verify Installation}
+\begin{lstlisting}[language=bash,caption=Verification]
+# Activate virtual environment
+source venv/bin/activate
+
+# Test Mininet
+sudo mn --test pingall
+
+# Check OVS
+sudo ovs-vsctl show
+
+# Verify Ryu
+python -c "import ryu; print(f'Ryu version: {ryu.__version__}')"
+
+# Verify Flask
+python -c "import flask; print(f'Flask version: {flask.__version__}')"
+\end{lstlisting}
+
+\textbf{Question A.1:} What version of Mininet is installed? What OpenFlow versions does it support?
+
+\newpage
+
+% Part B
+\section{Part B: Topology Exploration (45 minutes)}
+
+\subsection{Launch the Network}
+
+\textbf{Recommended: One-Click Launch (Windows)}
+
+Double-click \texttt{START\_SECURENET.bat} in the project folder. This automatically:
+\begin{itemize}
+    \item Syncs files to WSL
+    \item Opens 3 Windows Terminal tabs with all components
+\end{itemize}
+
+\textbf{Alternative: Manual Launch (3 WSL terminals)}
+
+\begin{lstlisting}[language=bash,caption=Starting the System Manually]
+# TERMINAL 1: Start Mininet with Demo Runner
+cd ~/securenet_dc
+sudo python3 scripts/run_demo.py
+
+# TERMINAL 2: Start Stats Collector (for detection)
+cd ~/securenet_dc
+source venv/bin/activate
+python3 scripts/network_stats_collector.py
+
+# TERMINAL 3: Start the Dashboard
+cd ~/securenet_dc
+source venv/bin/activate
+python3 dashboard/app.py
+\end{lstlisting}
+
+\textbf{Simple Test (without dashboard):}
+\begin{lstlisting}[language=bash]
+# Quick test with Linux Bridge mode
+sudo mn --switch lxbr --topo tree,depth=2,fanout=3
+\end{lstlisting}
+
+\subsection{Explore the Topology}
+In the Mininet CLI, execute:
+
+\begin{lstlisting}[language=bash,caption=Topology Exploration Commands]
+# View all nodes
+mininet> nodes
+
+# View network connections
+mininet> net
+
+# View detailed information
+mininet> dump
+
+# Test connectivity
+mininet> pingall
+\end{lstlisting}
+
+\subsection{Understanding the Fat-Tree Structure}
+The topology has three layers:
+\begin{itemize}
+    \item \textbf{Core Layer:} 4 switches (c1-c4)
+    \item \textbf{Aggregation Layer:} 8 switches (a1-a8), 2 per pod
+    \item \textbf{Edge Layer:} 8 switches (e1-e8), 2 per pod
+    \item \textbf{Hosts:} 16 hosts (h1-h16), distributed across 4 pods
+\end{itemize}
+
+\begin{table}[H]
+\centering
+\caption{Host Configuration}
+\begin{tabular}{lll}
+\toprule
+\textbf{Hosts} & \textbf{IP Range} & \textbf{Role} \\
+\midrule
+h1-h4 & 10.0.1.x & Web Servers \\
+h5-h6 & 10.0.2.x & Database Servers \\
+h7-h12 & 10.0.3.x & Client Hosts \\
+h13 & 10.0.4.1 & Attacker \\
+h14 & 10.0.4.2 & IDS Monitor \\
+h15-h16 & 10.0.5.x & Streaming Servers \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Question B.1:} How many hops does a packet travel from h1 to h4 (same pod)? From h1 to h16 (different pod)?
+
+\textbf{Question B.2:} Calculate the theoretical bisection bandwidth of this k=4 Fat-Tree.
+
+\newpage
+
+% Part C
+\section{Part C: SDN Controller Basics (60 minutes)}
+
+\subsection{Understanding OpenFlow}
+OpenFlow defines how the controller communicates with switches:
+\begin{itemize}
+    \item \textbf{Packet-In:} Switch sends packet to controller for decision
+    \item \textbf{Flow-Mod:} Controller installs flow rules on switch
+    \item \textbf{Packet-Out:} Controller tells switch how to forward a packet
+\end{itemize}
+
+\subsection{Examine Flow Tables}
+\begin{lstlisting}[language=bash,caption=Viewing Flow Tables]
+# View flows on switch s1
+mininet> sh ovs-ofctl dump-flows e1
+
+# View flows with statistics
+mininet> sh ovs-ofctl dump-flows e1 --stats
+\end{lstlisting}
+
+\subsection{L2 Learning Switch Behavior}
+Generate traffic and observe flow rule installation:
+
+\begin{lstlisting}[language=bash]
+# Generate traffic
+mininet> h1 ping -c 5 h7
+
+# Check new flow rules
+mininet> sh ovs-ofctl dump-flows e1
+\end{lstlisting}
+
+\textbf{Question C.1:} Describe the flow rules installed after the ping. What match fields are used?
+
+\textbf{Challenge C.1:} Modify the controller to log every packet-in event with source and destination MAC addresses.
+
+\newpage
+
+% Part D
+\section{Part D: Load Balancer Implementation (45 minutes)}
+
+\subsection{Concept}
+The load balancer uses a Virtual IP (VIP) to distribute traffic across multiple backend servers. When a client connects to the VIP, the controller selects a server and rewrites packet headers.
+
+\subsection{Configuration}
+\begin{itemize}
+    \item VIP: 10.0.0.100
+    \item Server Pool: h1 (10.0.1.1), h2 (10.0.1.2), h3 (10.0.1.3), h4 (10.0.1.4)
+    \item Algorithm: Round-robin
+\end{itemize}
+
+\subsection{Testing}
+\begin{lstlisting}[language=bash,caption=Load Balancer Testing]
+# Start web servers
+mininet> h1 python3 -m http.server 80 &
+mininet> h2 python3 -m http.server 80 &
+mininet> h3 python3 -m http.server 80 &
+mininet> h4 python3 -m http.server 80 &
+
+# Send requests to VIP from client
+mininet> h7 curl http://10.0.0.100/
+
+# Send multiple requests
+mininet> h7 for i in $(seq 1 8); do curl -s http://10.0.0.100/; done
+\end{lstlisting}
+
+\textbf{Question D.1:} How does the controller handle ARP requests for the VIP?
+
+\textbf{Question D.2:} What OpenFlow actions are used to redirect traffic to backend servers?
+
+\textbf{Challenge D.1:} Implement weighted round-robin where h1 gets 50\% of traffic.
+
+\newpage
+
+% Part E
+\section{Part E: DDoS Attack and Defense (60 minutes)}
+
+\subsection{Attack Types}
+The detection engine monitors for:
+\begin{itemize}
+    \item \textbf{SYN Flood:} Many TCP SYN packets without completing handshake
+    \item \textbf{ICMP Flood:} Excessive ping requests
+    \item \textbf{UDP Flood:} High volume of UDP packets
+\end{itemize}
+
+\subsection{Detection Algorithm (v3.0)}
+The detection system uses TX-based detection to accurately identify attackers:
+\begin{itemize}
+    \item High RX on switch port = host is \textbf{SENDING} = ATTACKER
+    \item High TX on switch port = host is \textbf{RECEIVING} = VICTIM (do not block)
+    \item IP-based deduplication prevents duplicate blocking
+    \item 5-second cooldown period prevents rapid re-detection
+\end{itemize}
+
+\subsection{Detection Thresholds}
+\begin{table}[H]
+\centering
+\caption{DDoS Detection Thresholds}
+\begin{tabular}{ll}
+\toprule
+\textbf{Attack Type} & \textbf{Threshold (pps)} \\
+\midrule
+SYN Flood & 100 \\
+ICMP Flood & 50 \\
+UDP Flood & 200 \\
+Total Traffic & 500 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Recommended: Using the Integrated Demo Runner}
+
+The easiest way to run attacks is using the integrated demo runner, which handles Mininet and attacks in one process:
+
+\begin{lstlisting}[language=bash,caption=Integrated Demo Runner]
+# Start the integrated demo (from Windows)
+# Double-click START_SECURENET.bat
+
+# Or manually in WSL:
+cd ~/securenet_dc
+source venv/bin/activate
+sudo python3 scripts/run_demo.py
+
+# The interactive menu provides:
+# 1. ICMP Flood Attack
+# 2. SYN Flood Attack
+# 3. UDP Flood Attack
+# 4. Ping of Death
+# 5. Multi-Vector Attack
+# 6. Run Demo Scenario (recommended for presentation)
+# 7. Test Connectivity
+# 8. Show Status
+# 9. Open Mininet CLI
+# 0. Exit
+\end{lstlisting}
+
+\subsection{Alternative: Manual Attack in Mininet CLI}
+
+\begin{lstlisting}[language=bash,caption=DDoS Simulation in Mininet]
+# Baseline: Normal traffic from h1
+mininet> h1 ping h2
+
+# Launch ICMP flood attack (simple, no extra tools needed)
+mininet> h4 ping -f -c 1000 10.0.0.1
+
+# For SYN flood (requires hping3 installed)
+mininet> h4 hping3 -S --flood -p 80 10.0.0.1
+
+# For UDP flood
+mininet> h4 hping3 --udp --flood -p 53 10.0.0.1
+
+# Alternative: Slow attack for better visibility
+mininet> h4 ping -i 0.01 10.0.0.1
+\end{lstlisting}
+
+\textbf{Note:} The stats collector logs will show detection alerts like:
+\begin{lstlisting}
+[DDoS] ATTACK DETECTED on s2-eth2
+[DDoS] Attacker: h4 (10.0.0.4)
+[DDoS] RX Rate: 15234 pps (threshold: 1000 pps)
+[DDoS] BLOCKING host h4 (10.0.0.4)
+\end{lstlisting}
+
+\subsection{Capture with Wireshark}
+\begin{lstlisting}[language=bash]
+# Start capture on edge switch interface
+mininet> sh wireshark -i e1-eth1 -k &
+
+# Rerun attack while capturing
+\end{lstlisting}
+
+\textbf{Question E.1:} How quickly was the attack detected? What was the packet rate?
+
+\textbf{Question E.2:} What flow rule was installed to block the attacker?
+
+\textbf{Challenge E.1:} Modify the detection threshold and test different values.
+
+\newpage
+
+% Part F
+\section{Part F: QoS Configuration (45 minutes)}
+
+\subsection{Traffic Classes}
+\begin{table}[H]
+\centering
+\caption{QoS Queue Configuration}
+\begin{tabular}{llll}
+\toprule
+\textbf{Queue} & \textbf{Class} & \textbf{Min BW} & \textbf{Ports} \\
+\midrule
+0 & Critical & 50\% & SSH (22), DNS (53) \\
+1 & Real-time & 30\% & RTSP (554), Streaming (5001) \\
+2 & Interactive & 15\% & HTTP (80, 443) \\
+3 & Bulk & 5\% & FTP (21), General \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Testing QoS}
+\begin{lstlisting}[language=bash,caption=QoS Testing]
+# Start iperf servers
+mininet> h15 iperf3 -s &
+mininet> h5 iperf3 -s -p 5002 &
+
+# Generate competing traffic
+# High-priority (streaming)
+mininet> h7 iperf3 -c 10.0.5.1 -u -b 50M -t 30 &
+
+# Low-priority (bulk)
+mininet> h8 iperf3 -c 10.0.2.1 -p 5002 -t 30 &
+
+# Observe that streaming maintains throughput
+\end{lstlisting}
+
+\textbf{Question F.1:} What DSCP values are assigned to each traffic class?
+
+\textbf{Question F.2:} How does the HTB qdisc enforce bandwidth guarantees?
+
+\textbf{Challenge F.1:} Create a custom QoS policy prioritizing your own application.
+
+\newpage
+
+% Part G
+\section{Part G: Performance Analysis (30 minutes)}
+
+\subsection{Automated Benchmarking}
+\begin{lstlisting}[language=bash,caption=Performance Testing]
+# Throughput test
+mininet> iperf h7 h1
+
+# Latency test
+mininet> h7 ping -c 20 h1
+
+# Cross-pod latency
+mininet> h7 ping -c 20 h16
+\end{lstlisting}
+
+\subsection{Expected Results}
+\begin{table}[H]
+\centering
+\caption{Expected Performance Metrics}
+\begin{tabular}{lll}
+\toprule
+\textbf{Test} & \textbf{Metric} & \textbf{Expected Value} \\
+\midrule
+Same-pod throughput & Bandwidth & ~94 Mbps \\
+Cross-pod throughput & Bandwidth & ~90 Mbps \\
+Same-pod latency & RTT & ~2-3 ms \\
+Cross-pod latency & RTT & ~4-5 ms \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Question G.1:} Compare intra-pod vs inter-pod latency. Explain the difference.
+
+\textbf{Challenge G.1:} Generate performance comparison graphs using the provided tools.
+
+\newpage
+
+% Deliverables
+\section{Deliverables}
+
+Submit the following:
+
+\begin{enumerate}
+    \item \textbf{Written Answers:} Responses to all questions (A.1, B.1-B.2, C.1, D.1-D.2, E.1-E.2, F.1-F.2, G.1)
+
+    \item \textbf{Wireshark Captures:}
+    \begin{itemize}
+        \item OpenFlow handshake messages
+        \item Attack traffic capture with annotations
+        \item Load balancer flow rules
+    \end{itemize}
+
+    \item \textbf{Performance Data:}
+    \begin{itemize}
+        \item Throughput measurements (screenshot or data)
+        \item Latency measurements
+        \item Generated graphs
+    \end{itemize}
+
+    \item \textbf{Challenge Implementations} (for bonus points):
+    \begin{itemize}
+        \item Code modifications
+        \item Test results
+    \end{itemize}
+
+    \item \textbf{Analysis Report:} 2-page report discussing:
+    \begin{itemize}
+        \item Key observations from each part
+        \item Challenges encountered
+        \item Comparison of expected vs actual results
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Grading Rubric}
+
+\begin{table}[H]
+\centering
+\caption{Lab Grading Rubric}
+\begin{tabular}{lll}
+\toprule
+\textbf{Component} & \textbf{Points} & \textbf{Criteria} \\
+\midrule
+Part A: Setup & 10 & Environment verified, questions answered \\
+Part B: Topology & 15 & Exploration complete, calculations correct \\
+Part C: SDN Basics & 15 & Flow rules explained, OpenFlow understood \\
+Part D: Load Balancer & 15 & VIP tested, NAT mechanism explained \\
+Part E: DDoS Defense & 20 & Attack simulated, detection observed \\
+Part F: QoS Config & 15 & Traffic classes tested, DSCP understood \\
+Part G: Performance & 10 & Measurements taken, analysis provided \\
+\midrule
+\textbf{Total} & \textbf{100} & \\
+\midrule
+Challenge Bonus & +20 & Successful challenge implementations \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\newpage
+
+% Appendix
+\section{Appendix: Useful Commands}
+
+\subsection{Mininet Commands}
+\begin{lstlisting}[language=bash]
+nodes        # List all nodes
+net          # Show network topology
+dump         # Detailed node info
+pingall      # Test all-to-all connectivity
+iperf h1 h2  # Bandwidth test
+xterm h1     # Open terminal for h1
+\end{lstlisting}
+
+\subsection{OpenFlow Commands}
+\begin{lstlisting}[language=bash]
+ovs-ofctl dump-flows s1     # View flow table
+ovs-ofctl dump-ports s1     # View port statistics
+ovs-vsctl show              # View OVS configuration
+\end{lstlisting}
+
+\subsection{Network Tools}
+\begin{lstlisting}[language=bash]
+ping -c 10 <ip>            # Latency test
+iperf3 -s                  # Start server
+iperf3 -c <ip> -t 10       # Bandwidth test
+tcpdump -i <interface>     # Packet capture
+\end{lstlisting}
+
+\end{document}
